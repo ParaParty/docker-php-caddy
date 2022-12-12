@@ -1,0 +1,5 @@
+:8080 {    
+    root * /var/www/html/public
+    php_fastcgi unix//run/php-fpm.sock
+    file_server
+}
