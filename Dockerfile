@@ -6,7 +6,7 @@ RUN xcaddy build
 
 
 # Install PHP
-FROM docker.io/alpine:3.16
+FROM docker.io/alpine:3.19
 # Setup document root
 WORKDIR /var/www/html
 
@@ -16,45 +16,45 @@ COPY --from=caddy-builder /usr/bin/caddy /usr/bin/caddy
 # Install packages and remove default server definition
 RUN apk add --no-cache \
   curl \
-  php81 \
-  php81-ctype \
-  php81-curl \
-  php81-dom \
-  php81-fpm \
-  php81-gd \
-  php81-intl \
-  php81-mbstring \
-  php81-mysqli \
-  php81-opcache \
-  php81-openssl \
-  php81-phar \
-  php81-session \
-  php81-xml \
-  php81-xmlreader \
-  php81-zlib \
-  php81-redis \
-  php81-tokenizer \
-  php81-fileinfo \
-  php81-zip \
-  php81-pdo \
-  php81-pdo_mysql \
-  php81-pdo_pgsql \
-  php81-exif \
-  php81-pecl-xdebug \
-  php81-xmlwriter \
-  php81-simplexml \
-  php81-iconv \
-  php81-bcmath \
+  php83 \
+  php83-ctype \
+  php83-curl \
+  php83-dom \
+  php83-fpm \
+  php83-gd \
+  php83-intl \
+  php83-mbstring \
+  php83-mysqli \
+  php83-opcache \
+  php83-openssl \
+  php83-phar \
+  php83-session \
+  php83-xml \
+  php83-xmlreader \
+  php83-zlib \
+  php83-redis \
+  php83-tokenizer \
+  php83-fileinfo \
+  php83-zip \
+  php83-pdo \
+  php83-pdo_mysql \
+  php83-pdo_pgsql \
+  php83-exif \
+  php83-pecl-xdebug \
+  php83-xmlwriter \
+  php83-simplexml \
+  php83-iconv \
+  php83-bcmath \
   supervisor \
   icu-data-full
 
 # Create symlink so programs depending on `php` still function
-RUN ln -s /usr/bin/php81 /usr/bin/php
+RUN ln -s /usr/bin/php83 /usr/bin/php
 
 
 # Install composer
-RUN php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');" && \
-    php -r "if (hash_file('sha384', 'composer-setup.php') === '55ce33d7678c5a611085589f1f3ddf8b3c52d662cd01d4ba75c0ee0459970c2200a51f492d557530c71c15d8dba01eae') { echo 'Installer verified'; } else { echo 'Installer corrupt'; unlink('composer-setup.php'); } echo PHP_EOL;"  && \
+RUN php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"  && \
+    php -r "if (hash_file('sha384', 'composer-setup.php') === 'dac665fdc30fdd8ec78b38b9800061b4150413ff2e3b6f88543c636f7cd84f6db9189d43a81e5503cda447da73c7e5b6') { echo 'Installer verified'; } else { echo 'Installer corrupt'; unlink('composer-setup.php'); } echo PHP_EOL;" && \
     php composer-setup.php && \
     php -r "unlink('composer-setup.php');" && \
     mv composer.phar /usr/local/bin/composer
@@ -63,8 +63,8 @@ RUN php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');" &&
 COPY config/Caddyfile /etc/caddy/Caddyfile
 
 # Configure PHP-FPM
-COPY config/fpm-pool.conf /etc/php81/php-fpm.d/www.conf
-COPY config/php.ini /etc/php81/conf.d/custom.ini
+COPY config/fpm-pool.conf /etc/php83/php-fpm.d/www.conf
+COPY config/php.ini /etc/php83/conf.d/custom.ini
 
 # Configure supervisord
 COPY config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf

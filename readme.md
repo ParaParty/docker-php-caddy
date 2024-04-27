@@ -34,11 +34,11 @@ Caddy configuration:
 
 PHP configuration:
 
-    docker run -v "`pwd`/php-setting.ini:/etc/php81/conf.d/settings.ini" paraparty/php-caddy
+    docker run -v "`pwd`/php-setting.ini:/etc/php83/conf.d/settings.ini" paraparty/php-caddy
 
 PHP-FPM configuration:
 
-    docker run -v "`pwd`/php-fpm-settings.conf:/etc/php81/php-fpm.d/server.conf" paraparty/php-caddy
+    docker run -v "`pwd`/php-fpm-settings.conf:/etc/php83/php-fpm.d/server.conf" paraparty/php-caddy
 
 _Note; Because `-v` requires an absolute path I've added `pwd` in the example to return the absolute path to the current directory_
 

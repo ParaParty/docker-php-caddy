@@ -1,5 +1,7 @@
 :8080 {
     root * /var/www/html/public
-    php_fastcgi unix//run/php-fpm.sock
+    php_fastcgi unix//run/php-fpm.sock {
+        trusted_proxies private_ranges
+    }
     file_server
 }
