@@ -6,7 +6,7 @@ RUN xcaddy build
 
 
 # Install PHP
-FROM docker.io/alpine:3.19
+FROM docker.io/alpine:3.20.3
 # Setup document root
 WORKDIR /var/www/html
 
