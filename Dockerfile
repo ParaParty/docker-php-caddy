@@ -16,9 +16,8 @@ ARG APORTS_REF=3.24-stable
 ARG PHP_VERSION=8.3.36
 ARG PHP_SHA256=dd54693aa334c5c4d72e9aee96b082c2473750a18a6c1d105789c93a3b1692fd
 RUN apk add --no-cache alpine-sdk curl && \
-    mkdir /aports && \
-    curl -fsSL "https://gitlab.alpinelinux.org/alpine/aports/-/archive/${APORTS_REF}/aports.tar.gz?path=community/php83" | \
-      tar -xz -C /aports --strip-components=1 && \
+    git clone --depth 1 --branch "${APORTS_REF}" --filter=blob:none --sparse https://github.com/alpinelinux/aports.git /aports && \
+    git -C /aports sparse-checkout set community/php83 && \
     cd /aports/community/php83 && \
     sed -i -e "s/^pkgver=.*/pkgver=${PHP_VERSION}/" -e 's/^pkgrel=.*/pkgrel=0\noptions="!check"/' APKBUILD && \
     abuild -F fetch && \
