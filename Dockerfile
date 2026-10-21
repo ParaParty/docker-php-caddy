@@ -1,12 +1,15 @@
 # Install Caddy
-FROM docker.io/caddy:builder-alpine AS caddy-builder
+FROM --platform=$BUILDPLATFORM docker.io/caddy:builder-alpine AS caddy-builder
+ARG TARGETOS
+ARG TARGETARCH
+ARG GOPROXY=https://goproxy.cn,direct
 ENV GO111MODULE=on \
-    GOPROXY=https://goproxy.cn,direct
-RUN xcaddy build
+    GOPROXY=${GOPROXY}
+RUN GOOS=$TARGETOS GOARCH=$TARGETARCH xcaddy build
 
 
 # Install PHP
-FROM docker.io/alpine:3.20.3
+FROM docker.io/alpine:3.24
 # Setup document root
 WORKDIR /var/www/html
 
@@ -48,12 +51,11 @@ RUN apk add --no-cache \
   supervisor \
   icu-data-full
 
+# Create symlink so programs depending on `php` still function
+RUN ln -s /usr/bin/php83 /usr/bin/php
+
 # Install composer
-RUN php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"  && \
-    php -r "if (hash_file('sha384', 'composer-setup.php') === 'dac665fdc30fdd8ec78b38b9800061b4150413ff2e3b6f88543c636f7cd84f6db9189d43a81e5503cda447da73c7e5b6') { echo 'Installer verified'; } else { echo 'Installer corrupt'; unlink('composer-setup.php'); } echo PHP_EOL;" && \
-    php composer-setup.php && \
-    php -r "unlink('composer-setup.php');" && \
-    mv composer.phar /usr/local/bin/composer
+COPY --from=docker.io/composer:2 /usr/bin/composer /usr/local/bin/composer
 
 # Configure nginx
 COPY config/Caddyfile /etc/caddy/Caddyfile
@@ -67,7 +69,7 @@ COPY config/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
 # Make sure files/folders needed by the processes are accessable when they run under the nobody user
 RUN mkdir /.config
-RUN chown -R nobody.nobody /var/www/html /run /.config
+RUN chown -R nobody:nobody /var/www/html /run /.config
 
 # Switch to use a non-root user from here on
 USER nobody

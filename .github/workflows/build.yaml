@@ -1,0 +1,98 @@
+name: Build image
+
+on:
+  push:
+    branches: [ '**' ]
+    tags: [ '*' ]
+  pull_request:
+  schedule:
+    # Daily rebuild to pick up Alpine security updates
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+env:
+  IMAGE_NAME: ghcr.io/paraparty/php-caddy
+  # First PHP 8.3 release fixing CVE-2026-109618 / CVE-2026-109619
+  PHP_MIN_VERSION: 8.3.36
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build test image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          pull: true
+          no-cache: true
+          load: true
+          tags: test-image
+          build-args: GOPROXY=https://proxy.golang.org,direct
+
+      - name: Check PHP version
+        id: php
+        run: |-
+          version=$(docker run --rm --entrypoint php test-image -r 'echo PHP_VERSION;')
+          echo "version=$version" >> $GITHUB_OUTPUT
+          echo "PHP $version"
+          if [ "$(printf '%s\n' "$PHP_MIN_VERSION" "$version" | sort -V | head -n1)" != "$PHP_MIN_VERSION" ]; then
+            echo "::warning::PHP $version is vulnerable to CVE-2026-109618 / CVE-2026-109619, relying on FPM mitigations until Alpine ships $PHP_MIN_VERSION"
+          fi
+
+      - name: Smoke test image
+        run: |-
+          docker run -d --name app -p 8080:8080 test-image
+          for i in $(seq 1 30); do curl --silent --fail -o page.html http://127.0.0.1:8080/ && break; sleep 1; done
+          grep -q 'PHP Version' page.html
+          docker exec app curl --silent --fail http://127.0.0.1:8080/fpm-ping
+          check() {
+            grep -q "<td class=\"e\">$1 *</td><td class=\"v\">$2 *</td>" page.html || { echo "::error::$1 is not $2"; exit 1; }
+          }
+          check memory_limit -1
+          check post_max_size 8M
+          check upload_max_filesize 2M
+          check session.upload_progress.enabled Off
+
+      - name: Login to GitHub Container Registry
+        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/'))
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |-
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=${{ steps.php.outputs.version }},enable={{is_default_branch}}
+            type=ref,event=tag
+            type=sha
+
+      - name: Build multi-arch image and push
+        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/'))
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: GOPROXY=https://proxy.golang.org,direct

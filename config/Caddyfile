@@ -1,5 +1,8 @@
 :8080 {
     root * /var/www/html/public
+    request_body {
+        max_size 8MB
+    }
     php_fastcgi unix//run/php-fpm.sock {
         trusted_proxies private_ranges
     }
