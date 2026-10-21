@@ -20,7 +20,8 @@ RUN apk add --no-cache alpine-sdk curl && \
     git -C /aports sparse-checkout set community/php83 && \
     cd /aports/community/php83 && \
     sed -i -e "s/^pkgver=.*/pkgver=${PHP_VERSION}/" -e 's/^pkgrel=.*/pkgrel=0\noptions="!check"/' APKBUILD && \
-    abuild -F fetch && \
+    mkdir -p /var/cache/distfiles && \
+    curl -fsSL -o /var/cache/distfiles/php-${PHP_VERSION}.tar.xz https://www.php.net/distributions/php-${PHP_VERSION}.tar.xz && \
     echo "${PHP_SHA256}  /var/cache/distfiles/php-${PHP_VERSION}.tar.xz" | sha256sum -c - && \
     abuild -F checksum && \
     abuild-keygen -an && \
