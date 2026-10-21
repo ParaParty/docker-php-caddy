@@ -25,7 +25,7 @@ RUN apk update && \
     curl -fsSL -o /var/cache/distfiles/php-${PHP_VERSION}.tar.xz https://www.php.net/distributions/php-${PHP_VERSION}.tar.xz && \
     echo "${PHP_SHA256}  /var/cache/distfiles/php-${PHP_VERSION}.tar.xz" | sha256sum -c - && \
     abuild -F checksum && \
-    abuild-keygen -an && \
+    abuild-keygen -ain && \
     abuild -F -r && \
     cp /root/.abuild/*.rsa.pub /root/packages/
 
