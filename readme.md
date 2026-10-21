@@ -1,11 +1,11 @@
-# Docker PHP-FPM 8.1 & Caddy on Alpine Linux
-Example PHP-FPM 8.1 & Caddy container image for Docker, built on [Alpine Linux](https://www.alpinelinux.org/).
+# Docker PHP-FPM 8.3 & Caddy on Alpine Linux
+Example PHP-FPM 8.3 & Caddy container image for Docker, built on [Alpine Linux](https://www.alpinelinux.org/).
 
 Repository: https://github.com/ParaParty/docker-php-caddy
 
 * Built on the lightweight and secure Alpine Linux distribution
 * Multi-platform, supporting AMD4, ARMv6, ARMv7, ARM64
-* Uses PHP 8.1 for better performance, lower CPU usage & memory footprint
+* Uses PHP 8.3 for better performance, lower CPU usage & memory footprint
 * The services Caddy, PHP-FPM and supervisord run under a non-privileged user (nobody) to make it more secure
 * The logs of all the services are redirected to the output of the Docker container (visible with `docker logs -f <container name>`)
 * Follows the KISS principle (Keep It Simple, Stupid) to make it easy to understand and adjust the image to your needs

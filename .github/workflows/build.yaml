@@ -1,0 +1,162 @@
+name: Build image
+
+on:
+  push:
+    branches: [ '**' ]
+    tags: [ '*' ]
+  pull_request:
+  schedule:
+    # Daily rebuild to pick up new PHP releases and Alpine security updates
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+env:
+  IMAGE_NAME: ghcr.io/paraparty/php-caddy
+  PHP_BRANCH: '8.3'
+  PUBLISH: ${{ github.event_name != 'pull_request' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/')) }}
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  php:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      sha256: ${{ steps.release.outputs.sha256 }}
+
+    steps:
+      - name: Get latest PHP release
+        id: release
+        run: |-
+          release=$(curl --silent --fail "https://www.php.net/releases/index.php?json&version=$PHP_BRANCH")
+          version=$(echo "$release" | jq -r .version)
+          sha256=$(echo "$release" | jq -r '.source[] | select(.filename | endswith(".tar.xz")) | .sha256')
+          [ -n "$version" ] && [ -n "$sha256" ]
+          echo "PHP $version ($sha256)"
+          echo "version=$version" >> $GITHUB_OUTPUT
+          echo "sha256=$sha256" >> $GITHUB_OUTPUT
+
+  build:
+    needs: php
+    strategy:
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-24.04
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Prepare
+        run: echo "PLATFORM_PAIR=${{ matrix.platform }}" | tr / - >> $GITHUB_ENV
+
+      - name: Build test image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          pull: true
+          load: true
+          tags: test-image
+          # Reuse the PHP build, always refresh the Alpine packages of the final image
+          no-cache-filters: app
+          cache-from: type=gha,scope=${{ env.PLATFORM_PAIR }}
+          cache-to: type=gha,mode=max,scope=${{ env.PLATFORM_PAIR }}
+          build-args: |-
+            PHP_VERSION=${{ needs.php.outputs.version }}
+            PHP_SHA256=${{ needs.php.outputs.sha256 }}
+            GOPROXY=https://proxy.golang.org,direct
+
+      - name: Smoke test image
+        run: |-
+          docker run -d --name app -p 8080:8080 test-image
+          for i in $(seq 1 30); do curl --silent --fail -o page.html http://127.0.0.1:8080/ && break; sleep 1; done
+          grep -q "PHP Version ${{ needs.php.outputs.version }}" page.html
+          docker exec app curl --silent --fail http://127.0.0.1:8080/fpm-ping
+
+      - name: Login to GitHub Container Registry
+        if: env.PUBLISH == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push image by digest
+        id: push
+        if: env.PUBLISH == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          outputs: type=image,name=${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=${{ env.PLATFORM_PAIR }}
+          build-args: |-
+            PHP_VERSION=${{ needs.php.outputs.version }}
+            PHP_SHA256=${{ needs.php.outputs.sha256 }}
+            GOPROXY=https://proxy.golang.org,direct
+
+      - name: Export digest
+        if: env.PUBLISH == 'true'
+        run: |-
+          mkdir -p ${{ runner.temp }}/digests
+          digest="${{ steps.push.outputs.digest }}"
+          touch "${{ runner.temp }}/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        if: env.PUBLISH == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ env.PLATFORM_PAIR }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    needs: [ php, build ]
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/'))
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digests-*
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |-
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=${{ needs.php.outputs.version }},enable={{is_default_branch}}
+            type=ref,event=tag
+            type=sha
+
+      - name: Create manifest list and push
+        working-directory: ${{ runner.temp }}/digests
+        run: |-
+          docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf '${{ env.IMAGE_NAME }}@sha256:%s ' *)
