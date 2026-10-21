@@ -15,7 +15,8 @@ FROM docker.io/alpine:3.24 AS php-build
 ARG APORTS_REF=3.24-stable
 ARG PHP_VERSION=8.3.36
 ARG PHP_SHA256=dd54693aa334c5c4d72e9aee96b082c2473750a18a6c1d105789c93a3b1692fd
-RUN apk add --no-cache alpine-sdk curl && \
+RUN apk update && \
+    apk add alpine-sdk curl && \
     git clone --depth 1 --branch "${APORTS_REF}" --filter=blob:none --sparse https://github.com/alpinelinux/aports.git /aports && \
     git -C /aports sparse-checkout set community/php83 && \
     cd /aports/community/php83 && \
